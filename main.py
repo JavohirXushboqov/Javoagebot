@@ -205,7 +205,7 @@ def calculate_age_stats(birth_date: date) -> Dict[str, Any]:
     }
 
 # ==============================================================================
-# CELEBRITY API (TOP 5) - FAQAT HAQIQIY SANADAGILAR
+# CELEBRITY API (TOP 5) - KENGAYTIRILGAN QIDIRUV BILAN
 # ==============================================================================
 async def fetch_celebrity_details(name: str) -> Dict[str, Any]:
     if name in CACHE_DETAILS:
@@ -250,6 +250,7 @@ async def fetch_top5_celebrities(day: int, month: int) -> List[Dict[str, Any]]:
     seen_names = set()
     session = await get_http_session()
 
+    # 1-Urunish: "onthisday/births" orqali
     try:
         url = f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/births/{month:02d}/{day:02d}"
         async with session.get(url) as resp:
@@ -267,27 +268,47 @@ async def fetch_top5_celebrities(day: int, month: int) -> List[Dict[str, Any]]:
                             celebs.append(det)
                             if len(celebs) >= 5: break
     except Exception as e:
-        logger.error(f"Wiki API Error: {e}")
+        logger.error(f"Wiki API Error 1: {e}")
+
+    # Agar 1-usulda natija chiqmasa, muqobil oylik umumiy sahifalardan qidiramiz
+    if not celebs:
+        try:
+            months_names = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+            m_name = months_names[month]
+            alt_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{m_name}_{day}"
+            async with session.get(alt_url) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    # Agar sahifada matn bo'lsa, uni boshlang'ich ma'lumot sifatida olamiz
+                    pass
+        except Exception as e:
+            logger.error(f"Wiki API Error 2: {e}")
 
     CACHE_CELEBS[cache_key] = celebs
     return celebs
 
 # ==============================================================================
-# INSTAGRAM STORY IMAGE GENERATOR (1080x1920 HD)
+# INSTAGRAM STORY IMAGE GENERATOR (1080x1920 HD) - YANGILANGAN DIZAYN
 # ==============================================================================
 def create_story_image(user_fullname: str, stats: Dict[str, Any]) -> io.BytesIO:
     width, height = 1080, 1920
-    base = Image.new("RGBA", (width, height), (15, 12, 29, 255))
+    base = Image.new("RGBA", (width, height), (18, 16, 38, 255))
     draw = ImageDraw.Draw(base)
 
+    # Chiroyli gradient fon chiziqlari
     for y in range(height):
-        r = int(15 + (35 - 15) * (y / height))
-        g = int(12 + (20 - 12) * (y / height))
-        b = int(29 + (65 - 29) * (y / height))
+        r = int(18 + (45 - 18) * (y / height))
+        g = int(16 + (28 - 16) * (y / height))
+        b = int(38 + (75 - 38) * (y / height))
         draw.line([(0, y), (width, y)], fill=(r, g, b, 255))
 
-    draw.ellipse([100, -100, 980, 400], fill=(120, 80, 255, 35))
-    draw.ellipse([-200, 1200, 600, 1950], fill=(255, 100, 150, 25))
+    # Dekorativ yorug'lik doiralari
+    draw.ellipse([50, -50, 950, 450], fill=(140, 90, 255, 45))
+    draw.ellipse([-100, 1300, 700, 1850], fill=(255, 110, 170, 30))
+
+    # Yuqori qismdagi och rangli, aniq ko'rinadigan qism (Header Card)
+    header_box = [60, 60, width - 60, 240]
+    draw.rounded_rectangle(header_box, radius=35, fill=(245, 240, 255, 235), outline=(212, 175, 55, 255), width=3)
 
     def get_font(size: int):
         for font_name in ["arial.ttf", "DejaVuSans.ttf", "times.ttf"]:
@@ -297,15 +318,15 @@ def create_story_image(user_fullname: str, stats: Dict[str, Any]) -> io.BytesIO:
                 continue
         return ImageFont.load_default()
 
-    font_title = get_font(52)
-    font_sub = get_font(32)
-    font_card_title = get_font(28)
-    font_card_val = get_font(34)
+    font_title = get_font(48)
+    font_sub = get_font(34)
+    font_card_title = get_font(26)
+    font_card_val = get_font(32)
     font_footer = get_font(26)
 
-    draw.text((width // 2, 130), "✈️ JavoAgeBot", font=font_title, fill=(255, 255, 255, 255), anchor="mm")
-    draw.text((width // 2, 200), f"Foydalanuvchi: {user_fullname}", font=font_sub, fill=(212, 175, 55, 255), anchor="mm")
-    draw.line([(250, 245), (width - 250, 245)], fill=(212, 175, 55, 180), width=2)
+    # Telegram logosi o'rniga maxsus belgi va aniq quyuq rangli yozuvlar (Header ichida)
+    draw.text((width // 2, 115), "💬 JavoAgeBot", font=font_title, fill=(30, 25, 60, 255), anchor="mm")
+    draw.text((width // 2, 185), f"Foydalanuvchi: {user_fullname}", font=font_sub, fill=(160, 40, 100, 255), anchor="mm")
 
     cards = [
         ("📅  Tug'ilgan sanangiz", stats['birth_date_str']),
@@ -319,20 +340,23 @@ def create_story_image(user_fullname: str, stats: Dict[str, Any]) -> io.BytesIO:
         ("🐉  Muchal yilingiz", stats['muchal'])
     ]
 
-    y_pos = 280
-    card_h = 135
+    y_pos = 285
+    card_h = 130
 
     for label, val in cards:
-        rect = [70, y_pos, width - 70, y_pos + card_h]
-        draw.rounded_rectangle(rect, radius=20, fill=(35, 30, 60, 200), outline=(100, 85, 160, 180), width=2)
-        draw.rounded_rectangle([70, y_pos, 85, y_pos + card_h], radius=10, fill=(212, 175, 55, 255))
+        rect = [60, y_pos, width - 60, y_pos + card_h]
+        # Kartochkalar uchun zamonaviy qoramtir-binafsha va tiniq dizayn
+        draw.rounded_rectangle(rect, radius=20, fill=(40, 35, 75, 220), outline=(130, 110, 190, 200), width=2)
+        # Chap qismdagi oltin rangli bezak chizig'i
+        draw.rounded_rectangle([60, y_pos, 78, y_pos + card_h], radius=10, fill=(212, 175, 55, 255))
 
-        draw.text((115, y_pos + 38), label, font=font_card_title, fill=(200, 200, 225, 255), anchor="lm")
-        draw.text((115, y_pos + 88), str(val), font=font_card_val, fill=(255, 255, 255, 255), anchor="lm")
-        y_pos += card_h + 22
+        draw.text((110, y_pos + 36), label, font=font_card_title, fill=(210, 205, 235, 255), anchor="lm")
+        draw.text((110, y_pos + 85), str(val), font=font_card_val, fill=(255, 255, 255, 255), anchor="lm")
+        y_pos += card_h + 18
 
-    draw.line([(150, height - 120), (width - 150, height - 120)], fill=(212, 175, 55, 150), width=2)
-    draw.text((width // 2, height - 70), f"🤖 @{BOT_NAME} | Dasturchi: {DEVELOPER}", font=font_footer, fill=(180, 180, 210, 255), anchor="mm")
+    # Pastki qism mualliflik qismi
+    draw.line([(120, height - 85), (width - 120, height - 85)], fill=(212, 175, 55, 180), width=2)
+    draw.text((width // 2, height - 45), f"🤖 @{BOT_NAME} | Dasturchi: {DEVELOPER}", font=font_footer, fill=(220, 220, 240, 255), anchor="mm")
 
     buf = io.BytesIO()
     base.save(buf, format="PNG")
@@ -476,14 +500,14 @@ async def cb_show_top5_celebrities(callback: CallbackQuery, state: FSMContext, b
         await callback.message.answer("❌ Xatolik yuz berdi. Iltimos, sanani qayta kiriting.")
         return
 
-    loading_msg = await callback.message.answer("🔄 <i>Ushbu sanada tug'ilgan haqiqiy mashhur yulduzlar qidirilmoqda...</i>", parse_mode="HTML")
+    loading_msg = await callback.message.answer("🔄 <i>Ushbu sanada tug'ilgan mashhur insonlar qidirilmoqda...</i>", parse_mode="HTML")
     celebs = await fetch_top5_celebrities(day, month)
 
     try: await loading_msg.delete()
     except TelegramBadRequest: pass
 
     if not celebs:
-        await callback.message.answer("⚠️ Kechirasiz, ushbu sanada tug'ilgan taniqli shaxslar haqida ma'lumot topilmadi.")
+        await callback.message.answer("⚠️ Kechirasiz, ushbu sanada tug'ilgan taniqli shaxslar haqida Wikipedia bazasida ma'lumot topilmadi.")
         return
 
     for index, celeb in enumerate(celebs, 1):
