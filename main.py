@@ -205,16 +205,8 @@ def calculate_age_stats(birth_date: date) -> Dict[str, Any]:
     }
 
 # ==============================================================================
-# CELEBRITY API (TOP 5)
+# CELEBRITY API (TOP 5) - FAKAT HAQIQIY SANADAGILAR
 # ==============================================================================
-FALLBACK_CELEBS: List[Dict[str, Any]] = [
-    {"name": "Cristiano Ronaldo", "year": "1985", "occ": "Futbolchi", "country": "Portugaliya", "desc": "Dunyoning eng mashhur va sovrindor futbolchilaridan biri.", "img": "https://upload.wikimedia.org/wikipedia/commons/8/8c/Cristiano_Ronaldo_2018.jpg"},
-    {"name": "Albert Einstein", "year": "1879", "occ": "Nazariy fizik", "country": "Olmash", "desc": "Nisbiylik nazariyasi asoschisi, Nobel mukofoti laureati.", "img": "https://upload.wikimedia.org/wikipedia/commons/d/d3/Albert_Einstein_Head.jpg"},
-    {"name": "Elon Musk", "year": "1971", "occ": "Tadbirkor", "country": "AQSH", "desc": "SpaceX va Tesla kompaniyalari asoschisi, novator.", "img": "https://upload.wikimedia.org/wikipedia/commons/3/34/Elon_Musk_Royal_Society_%28crop2%29.jpg"},
-    {"name": "Lionel Messi", "year": "1987", "occ": "Futbolchi", "country": "Argentina", "desc": "Jahon chempioni, 8 karra Oltin to'p sohibi.", "img": "https://upload.wikimedia.org/wikipedia/commons/c/c1/Lionel_Messi_20180626.jpg"},
-    {"name": "Steve Jobs", "year": "1955", "occ": "Ixtirochi", "country": "AQSH", "desc": "Apple kompaniyasi asoschisi va texnologiya afsonasi.", "img": "https://upload.wikimedia.org/wikipedia/commons/d/dc/Steve_Jobs_Headshot_2010-CROP.jpg"}
-]
-
 async def fetch_celebrity_details(name: str) -> Dict[str, Any]:
     if name in CACHE_DETAILS:
         return CACHE_DETAILS[name]
@@ -263,7 +255,7 @@ async def fetch_top5_celebrities(day: int, month: int) -> List[Dict[str, Any]]:
         async with session.get(url) as resp:
             if resp.status == 200:
                 data = await resp.json()
-                for b in data.get("births", [])[:12]:
+                for b in data.get("births", []):
                     pages = b.get("pages", [])
                     year = str(b.get("year", "Noma'lum"))
                     if pages:
@@ -277,18 +269,6 @@ async def fetch_top5_celebrities(day: int, month: int) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Wiki API Error: {e}")
 
-    if len(celebs) < 5:
-        for f_celeb in FALLBACK_CELEBS:
-            if f_celeb["name"] not in seen_names:
-                seen_names.add(f_celeb["name"])
-                celebs.append({
-                    "name": f_celeb["name"], "year": f_celeb["year"],
-                    "occupation": f_celeb["occ"], "country": f_celeb["country"],
-                    "description": f_celeb["desc"], "image_url": f_celeb["img"]
-                })
-                if len(celebs) >= 5: break
-
-    celebs = celebs[:5]
     CACHE_CELEBS[cache_key] = celebs
     return celebs
 
@@ -300,14 +280,12 @@ def create_story_image(user_fullname: str, stats: Dict[str, Any]) -> io.BytesIO:
     base = Image.new("RGBA", (width, height), (15, 12, 29, 255))
     draw = ImageDraw.Draw(base)
 
-    # Modern Premium Gradient Background
     for y in range(height):
         r = int(15 + (35 - 15) * (y / height))
         g = int(12 + (20 - 12) * (y / height))
         b = int(29 + (65 - 29) * (y / height))
         draw.line([(0, y), (width, y)], fill=(r, g, b, 255))
 
-    # Glow background effects
     draw.ellipse([100, -100, 980, 400], fill=(120, 80, 255, 35))
     draw.ellipse([-200, 1200, 600, 1950], fill=(255, 100, 150, 25))
 
@@ -325,7 +303,6 @@ def create_story_image(user_fullname: str, stats: Dict[str, Any]) -> io.BytesIO:
     font_card_val = get_font(34)
     font_footer = get_font(26)
 
-    # Header with Telegram branding
     draw.text((width // 2, 130), "✈️ JavoAgeBot", font=font_title, fill=(255, 255, 255, 255), anchor="mm")
     draw.text((width // 2, 200), f"Foydalanuvchi: {user_fullname}", font=font_sub, fill=(212, 175, 55, 255), anchor="mm")
     draw.line([(250, 245), (width - 250, 245)], fill=(212, 175, 55, 180), width=2)
@@ -354,7 +331,6 @@ def create_story_image(user_fullname: str, stats: Dict[str, Any]) -> io.BytesIO:
         draw.text((115, y_pos + 88), str(val), font=font_card_val, fill=(255, 255, 255, 255), anchor="lm")
         y_pos += card_h + 22
 
-    # Footer
     draw.line([(150, height - 120), (width - 150, height - 120)], fill=(212, 175, 55, 150), width=2)
     draw.text((width // 2, height - 70), f"🤖 @{BOT_NAME} | Dasturchi: {DEVELOPER}", font=font_footer, fill=(180, 180, 210, 255), anchor="mm")
 
@@ -435,7 +411,6 @@ async def process_birthdate(message: Message, state: FSMContext, bot: Bot):
     stats = calculate_age_stats(parsed_date)
     await state.update_data(stats=stats, user_fullname=message.from_user.full_name)
 
-    # Samimiy va muomala bilan yozilgan matn
     msg_text = (
         f"🎉 <b>Hurmatli {message.from_user.full_name}, sizning yosh statistikangiz bilan tanishing!</b>\n\n"
         f"👤 <b>Foydalanuvchi:</b> {message.from_user.full_name}\n"
@@ -454,7 +429,6 @@ async def process_birthdate(message: Message, state: FSMContext, bot: Bot):
         f"<i>Sizga uzoq va mazmunli umr, doimiy omad va sihat-salomatlik tilaymiz!</i> 😊"
     )
 
-    # Tugmalar aynan screenshotingizdagidek saqlangan
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🖼 Ma'lumotni rasm shaklida olish", callback_data="get_story_img")],
         [InlineKeyboardButton(text="🌟 Shu sanada tug'ilgan mashhurlar", callback_data=f"top5_{stats['day']}_{stats['month']}")]
@@ -502,11 +476,15 @@ async def cb_show_top5_celebrities(callback: CallbackQuery, state: FSMContext, b
         await callback.message.answer("❌ Xatolik yuz berdi. Iltimos, sanani qayta kiriting.")
         return
 
-    loading_msg = await callback.message.answer("🔄 <i>Ushbu sanada tug'ilgan Top-5 mashhur yulduzlar qidirilmoqda...</i>", parse_mode="HTML")
+    loading_msg = await callback.message.answer("🔄 <i>Ushbu sanada tug'ilgan haqiqiy mashhur yulduzlar qidirilmoqda...</i>", parse_mode="HTML")
     celebs = await fetch_top5_celebrities(day, month)
 
     try: await loading_msg.delete()
     except TelegramBadRequest: pass
+
+    if not celebs:
+        await callback.message.answer("⚠️ Kechirasiz, ushbu sanada tug'ilgan taniqli shaxslar haqida ma'lumot topilmadi.")
+        return
 
     for index, celeb in enumerate(celebs, 1):
         caption = (
