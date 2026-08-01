@@ -205,52 +205,8 @@ def calculate_age_stats(birth_date: date) -> Dict[str, Any]:
     }
 
 # ==============================================================================
-# CELEBRITY API & KAFOLATLANGAN BAZA
+# ANIQ KUN UCHUN MASHHURLARNI TOPISH (WIKIPEDIA API + DINAMIK FILTR)
 # ==============================================================================
-FALLBACK_CELEBS = {
-    (31, 1): [
-        {"name": "Wolfgang Amadeus Mozart", "year": "1756", "occupation": "Dahiy bastakor", "country": "Avstriya", "description": "Klassik musiqa tarixidagi eng buyuk bastakorlardan biri."},
-        {"name": "Justin Timberlake", "year": "1981", "occupation": "Qo'shiqchi va aktyor", "country": "AQSh", "description": "Dunyoga mashhur pop va R&B ijrochisi."},
-        {"name": "Zamirbek Xushboqov", "year": "1995", "occupation": "Dasturchi", "country": "O'zbekiston", "description": "Faol yosh muhandis va dasturchi."},
-        {"name": "Min Kyun-hoon", "year": "1984", "occupation": "Xonanda", "country": "Janubiy Koreya", "description": "Mashhur qo'shiqchi va teleboshlovchi."},
-        {"name": "Ellie Bamber", "year": "1997", "occupation": "Aktrisa", "country": "Buyuk Britaniya", "description": "Taniqli kino aktrisasi."}
-    ]
-}
-
-async def fetch_celebrity_details(name: str) -> Dict[str, Any]:
-    if name in CACHE_DETAILS:
-        return CACHE_DETAILS[name]
-
-    details = {
-        "name": name, "year": "Noma'lum", "occupation": "Mashhur shaxs",
-        "country": "Jahon", "description": "Dunyoga tanilgan mashhur insonlardan biri.",
-        "image_url": "https://upload.wikimedia.org/wikipedia/commons/7/7c/Profile_avatar_placeholder_large.png"
-    }
-
-    try:
-        session = await get_http_session()
-        url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{name.replace(' ', '_')}"
-        async with session.get(url) as resp:
-            if resp.status == 200:
-                data = await resp.json()
-                raw_desc = data.get("extract", "")
-                description = data.get("description", "")
-                
-                if "originalimage" in data:
-                    details["image_url"] = data["originalimage"].get("source")
-                elif "thumbnail" in data:
-                    details["image_url"] = data["thumbnail"].get("source")
-
-                uz_desc = await async_translate(raw_desc or description)
-                uz_occ = await async_translate(description or "Mashhur shaxs")
-                if uz_desc: details["description"] = uz_desc
-                if uz_occ: details["occupation"] = uz_occ
-    except Exception as e:
-        logger.error(f"Celebrity Details Fetch Error: {e}")
-
-    CACHE_DETAILS[name] = details
-    return details
-
 async def fetch_top5_celebrities(day: int, month: int) -> List[Dict[str, Any]]:
     cache_key = f"{month:02d}-{day:02d}"
     if cache_key in CACHE_CELEBS:
@@ -265,56 +221,90 @@ async def fetch_top5_celebrities(day: int, month: int) -> List[Dict[str, Any]]:
         async with session.get(url) as resp:
             if resp.status == 200:
                 data = await resp.json()
-                for b in data.get("births", []):
+                births_list = data.get("births", [])
+                # Tartibni aralashtirmasdan yoki ahamiyatliligiga qarab saralab olamiz
+                for b in births_list:
                     pages = b.get("pages", [])
                     year = str(b.get("year", "Noma'lum"))
                     if pages:
-                        name = pages[0].get("titles", {}).get("normalized") or pages[0].get("title")
+                        p = pages[0]
+                        name = p.get("titles", {}).get("normalized") or p.get("title")
+                        extract = p.get("extract", "Ma'lumot mavjud emas.")
+                        
                         if name and name not in seen_names:
                             seen_names.add(name)
-                            det = await fetch_celebrity_details(name)
-                            det["year"] = year
-                            celebs.append(det)
-                            if len(celebs) >= 5: break
+                            
+                            # Rasmni olish
+                            img_url = "https://upload.wikimedia.org/wikipedia/commons/7/7c/Profile_avatar_placeholder_large.png"
+                            if "originalimage" in p:
+                                img_url = p["originalimage"].get("source")
+                            elif "thumbnail" in p:
+                                img_url = p["thumbnail"].get("source")
+
+                            uz_desc = await async_translate(extract)
+                            
+                            celebs.append({
+                                "name": name,
+                                "year": year,
+                                "occupation": "Taniqli shaxs",
+                                "country": "Jahon",
+                                "description": uz_desc or "Tarixda qolgan mashhur shaxs.",
+                                "image_url": img_url
+                            })
+                            if len(celebs) >= 5:
+                                break
     except Exception as e:
-        logger.error(f"Wiki API Error: {e}")
+        logger.error(f"Wiki API OnThisDay Error: {e}")
 
-    # Agar maxsus sanada (masalan 31.01) bazada bo'lsa, uni olamiz
-    if not celebs and (day, month) in FALLBACK_CELEBS:
-        celebs = FALLBACK_CELEBS[(day, month)]
-    elif not celebs:
-        # Har qanday boshqa sana uchun ham kafolatlangan mashhurlar ro'yxati
-        celebs = [
-            {"name": "Cristiano Ronaldo", "year": "1985", "occupation": "Professional futbolchi", "country": "Portugaliya", "description": "Jahon futboli afsonasi."},
-            {"name": "Lionel Messi", "year": "1987", "occupation": "Professional futbolchi", "country": "Argentina", "description": "Ko'p karra Oltin to'p sohibi."},
-            {"name": "Elon Musk", "year": "1971", "occupation": "Tadbirkor va muhandis", "country": "AQSh", "description": "Tesla va SpaceX asoschisi."},
-            {"name": "Bill Gates", "year": "1955", "occupation": "Dasturchi va tadbirkor", "country": "AQSh", "description": "Microsoft asoschisi."},
-            {"name": "Albert Einstein", "year": "1879", "occupation": "Dahiy fizik", "country": "Germaniya", "description": "Nisbiylik nazariyasi asoschisi."}
-        ]
+    # Agar Wikipedia'dan yetarlicha chiqmasa yoki umuman chiqmasa, o'sha sanaga moslab generatsiya qilinadi
+    if len(celebs) < 5:
+        # Har bir sana uchun o'sha kunda tug'ilgan haqiqiy bazaviy shaxslar
+        specific_celebs = {
+            (31, 1): [
+                {"name": "Wolfgang Amadeus Mozart", "year": "1756", "occupation": "Bastakor", "country": "Avstriya", "description": "Buyuk mumtoz musiqa bastakori."},
+                {"name": "Justin Timberlake", "year": "1981", "occupation": "Xonanda", "country": "AQSh", "description": "Mashhur pop va R&B ijrochisi."},
+                {"name": "Min Kyun-hoon", "year": "1984", "occupation": "Xonanda", "country": "Janubiy Koreya", "description": "Koreyalik mashhur qo'shiqchi."},
+                {"name": "Ellie Bamber", "year": "1997", "occupation": "Aktrisa", "country": "Buyuk Britaniya", "description": "Taniqli kino aktrisasi."},
+                {"name": "Zamirbek Xushboqov", "year": "1995", "occupation": "Dasturchi", "country": "O'zbekiston", "description": "Faol yosh muhandis."}
+            ],
+            (5, 2): [
+                {"name": "Cristiano Ronaldo", "year": "1985", "occupation": "Futbolchi", "country": "Portugaliya", "description": "Jahon futboli afsonasi."},
+                {"name": "Neymar Jr", "year": "1992", "occupation": "Futbolchi", "country": "Braziliya", "description": "Taniqli braziliyalik futbol yulduzi."},
+                {"name": "Carlos Tevez", "year": "1984", "occupation": "Futbolchi", "country": "Argentina", "description": "Hujumchi pozitsiyasida o'ynagan futbolchi."},
+                {"name": "Michael Sheen", "year": "1969", "occupation": "Aktyor", "country": "Buyuk Britaniya", "description": "Hollywood aktrisasi va aktyori."},
+                {"name": "Frederik Andersen", "year": "1989", "occupation": "Xokkeychi", "country": "Daniya", "description": "Professional xokkey darvozaboni."}
+            ]
+        }
+        
+        key = (day, month)
+        if key in specific_celebs:
+            needed = 5 - len(celebs)
+            for sc in specific_celebs[key]:
+                if not any(c["name"].lower() == sc["name"].lower() for c in celebs):
+                    celebs.append({
+                        "name": sc["name"], "year": sc["year"], "occupation": sc["occupation"],
+                        "country": sc["country"], "description": sc["description"],
+                        "image_url": "https://upload.wikimedia.org/wikipedia/commons/7/7c/Profile_avatar_placeholder_large.png"
+                    })
+                    if len(celebs) >= 5: break
 
-    CACHE_CELEBS[cache_key] = celebs
-    return celebs
+    CACHE_CELEBS[cache_key] = celebs[:5]
+    return CACHE_CELEBS[cache_key]
 
 # ==============================================================================
-# INSTAGRAM STORY IMAGE GENERATOR (1080x1920 HD) - YANGILANGAN DIZAYN
+# INSTAGRAM STORY IMAGE GENERATOR (RETRO FON VA TALAB QILINGAN DIZAYN)
 # ==============================================================================
-def create_story_image(user_fullname: str, stats: Dict[str, Any]) -> io.BytesIO:
+def create_story_image(user_fullname: str, stats: Dict[str, Any], bg_image_path: Optional[str] = None) -> io.BytesIO:
     width, height = 1080, 1920
-    base = Image.new("RGBA", (width, height), (18, 16, 38, 255))
+    
+    # Retro fon rasmini yuklash yoki och rangli qog'oz rangini yaratish
+    if bg_image_path and os.path.exists(bg_image_path):
+        base = Image.open(bg_image_path).convert("RGBA")
+        base = base.resize((width, height), Image.Resampling.LANCZOS)
+    else:
+        base = Image.new("RGBA", (width, height), (245, 235, 215, 255))
+
     draw = ImageDraw.Draw(base)
-
-    for y in range(height):
-        r = int(18 + (45 - 18) * (y / height))
-        g = int(16 + (28 - 16) * (y / height))
-        b = int(38 + (75 - 38) * (y / height))
-        draw.line([(0, y), (width, y)], fill=(r, g, b, 255))
-
-    draw.ellipse([50, -50, 950, 450], fill=(140, 90, 255, 45))
-    draw.ellipse([-100, 1300, 700, 1850], fill=(255, 110, 170, 30))
-
-    # Yuqori qismdagi sarlavha bloki (Endi to'q binafsha-pushti yorqin va ko'rkam fonda, yozuvlar oq va oltin rangda aniq ko'rinadi)
-    header_box = [60, 60, width - 60, 240]
-    draw.rounded_rectangle(header_box, radius=35, fill=(55, 30, 90, 245), outline=(212, 175, 55, 255), width=3)
 
     def get_font(size: int):
         for font_name in ["arial.ttf", "DejaVuSans.ttf", "times.ttf"]:
@@ -324,15 +314,21 @@ def create_story_image(user_fullname: str, stats: Dict[str, Any]) -> io.BytesIO:
                 continue
         return ImageFont.load_default()
 
-    font_title = get_font(48)
+    font_title = get_font(42)
     font_sub = get_font(34)
     font_card_title = get_font(26)
     font_card_val = get_font(32)
     font_footer = get_font(26)
 
-    # Samolyot o'rniga Telegram logosi belgisi (💬) va oq/oltin rangdagi aniq yozuvlar
-    draw.text((width // 2, 115), "💬 JavoAgeBot", font=font_title, fill=(255, 255, 255, 255), anchor="mm")
-    draw.text((width // 2, 185), f"Foydalanuvchi: {user_fullname}", font=font_sub, fill=(212, 175, 55, 255), anchor="mm")
+    # Yuqori qism: Telegram logosi (💬 yoki matn) va JavoAgeBot, tagidan foydalanuvchi ismi
+    # Ramka yoki fon bloki
+    header_box = [80, 70, width - 80, 230]
+    draw.rounded_rectangle(header_box, radius=25, fill=(40, 30, 20, 210), outline=(212, 175, 55, 255), width=3)
+
+    # Telegram logosi belgisi va JavoAgeBot yozuvi bir qatorda
+    draw.text((120, 115), "💬 JavoAgeBot", font=font_title, fill=(255, 255, 255, 255), anchor="lm")
+    # Tagidan Foydalanuvchi ismi
+    draw.text((120, 175), f"Foydalanuvchi ismi: {user_fullname}", font=font_sub, fill=(235, 205, 120, 255), anchor="lm")
 
     cards = [
         ("📅  Tug'ilgan sanangiz", stats['birth_date_str']),
@@ -346,20 +342,21 @@ def create_story_image(user_fullname: str, stats: Dict[str, Any]) -> io.BytesIO:
         ("🐉  Muchal yilingiz", stats['muchal'])
     ]
 
-    y_pos = 285
-    card_h = 130
+    y_pos = 265
+    card_h = 135
 
     for label, val in cards:
-        rect = [60, y_pos, width - 60, y_pos + card_h]
-        draw.rounded_rectangle(rect, radius=20, fill=(40, 35, 75, 220), outline=(130, 110, 190, 200), width=2)
-        draw.rounded_rectangle([60, y_pos, 78, y_pos + card_h], radius=10, fill=(212, 175, 55, 255))
+        rect = [80, y_pos, width - 80, y_pos + card_h]
+        # Qog'oz uslubiga mos to'q jigarrang/qora shaffof quti
+        draw.rounded_rectangle(rect, radius=18, fill=(50, 38, 25, 190), outline=(150, 120, 80, 200), width=2)
+        draw.rounded_rectangle([80, y_pos, 100, y_pos + card_h], radius=8, fill=(212, 175, 55, 255))
 
-        draw.text((110, y_pos + 36), label, font=font_card_title, fill=(210, 205, 235, 255), anchor="lm")
-        draw.text((110, y_pos + 85), str(val), font=font_card_val, fill=(255, 255, 255, 255), anchor="lm")
-        y_pos += card_h + 18
+        draw.text((130, y_pos + 38), label, font=font_card_title, fill=(220, 205, 180, 255), anchor="lm")
+        draw.text((130, y_pos + 92), str(val), font=font_card_val, fill=(255, 255, 255, 255), anchor="lm")
+        y_pos += card_h + 15
 
-    draw.line([(120, height - 85), (width - 120, height - 85)], fill=(212, 175, 55, 180), width=2)
-    draw.text((width // 2, height - 45), f"🤖 @{BOT_NAME} | Dasturchi: {DEVELOPER}", font=font_footer, fill=(220, 220, 240, 255), anchor="mm")
+    draw.line([(120, height - 75), (width - 120, height - 75)], fill=(120, 90, 50, 180), width=2)
+    draw.text((width // 2, height - 40), f"🤖 @{BOT_NAME} | Dasturchi: {DEVELOPER}", font=font_footer, fill=(60, 45, 30, 255), anchor="mm")
 
     buf = io.BytesIO()
     base.save(buf, format="PNG")
@@ -378,18 +375,17 @@ async def cmd_start(message: Message, state: FSMContext, bot: Bot):
     if not await check_channel_subscription(bot, message.from_user.id):
         text = (
             f"Assalomu alaykum, hurmatli <b>{message.from_user.full_name}</b>! 😊\n\n"
-            f"Botimiz xizmatlaridan to'liq va bepul foydalanish uchun rasmiy kanalimizga obuna bo'lishingizni so'raymiz:\n"
-            f"👉 <b>{REQUIRED_CHANNEL}</b>\n\n"
-            f"Obuna bo'lgach, quyidagi <b>✅ Obunani tekshirish</b> tugmasini bosing!"
+            f"Botimiz xizmatlaridan to'liq va bepul foydalanish uchun kanalimizga obuna bo'ling:\n"
+            f"👉 <b>{REQUIRED_CHANNEL}</b>"
         )
         await message.answer(text, parse_mode="HTML", reply_markup=get_sub_keyboard())
         return
 
     text = (
         f"Assalomu alaykum, xush kelibsiz <b>{message.from_user.full_name}</b>! ✨\n\n"
-        f"<b>{BOT_NAME}</b> orqali yoshingiz va umringiz haqida juda qiziqarli hamda aniq ma'lumotlarga ega bo'lasiz.\n\n"
+        f"<b>{BOT_NAME}</b> orqali yoshingiz va tug'ilgan kuningizga oid ma'lumotlarni oling.\n\n"
         f"📌 <b>Iltimos, tug'ilgan sanangizni yuboring:</b>\n"
-        f"<i>(Masalan: <code>05.02.2002</code> yoki <code>2002-02-05</code>)</i>"
+        f"<i>(Masalan: <code>05.02.2002</code>)</i>"
     )
     await message.answer(text, parse_mode="HTML")
     await state.set_state(UserStates.waiting_for_birthdate)
@@ -428,32 +424,31 @@ async def process_birthdate(message: Message, state: FSMContext, bot: Bot):
             pass
 
     if not parsed_date:
-        await message.answer("❌ <b>Sana formati tushunilmadi!</b>\nIltimos, qaytadan to'g'ri ko'rinishda kiriting (Masalan: <code>05.02.2002</code>):", parse_mode="HTML")
+        await message.answer("❌ <b>Sana formati tushunilmadi!</b>\nMasalan: <code>05.02.2002</code> ko'rinishida yuboring:", parse_mode="HTML")
         return
 
     if parsed_date > date.today() or parsed_date.year < 1900:
-        await message.answer("❌ <b>Iltimos, haqiqiy va to'g'ri tug'ilgan sanangizni kiriting!</b>", parse_mode="HTML")
+        await message.answer("❌ <b>Iltimos, haqiqiy tug'ilgan sanangizni kiriting!</b>", parse_mode="HTML")
         return
 
     stats = calculate_age_stats(parsed_date)
     await state.update_data(stats=stats, user_fullname=message.from_user.full_name)
 
     msg_text = (
-        f"🎉 <b>Hurmatli {message.from_user.full_name}, sizning yosh statistikangiz bilan tanishing!</b>\n\n"
+        f"🎉 <b>Hurmatli {message.from_user.full_name}, yosh statistikangiz:</b>\n\n"
         f"👤 <b>Foydalanuvchi:</b> {message.from_user.full_name}\n"
         f"📅 <b>Tug'ilgan kuningiz:</b> <code>{stats['birth_date_str']}</code>\n"
         f"⏳ <b>Ayni vaqtdagi yoshingiz:</b> <b>{stats['years']} yosh, {stats['months']} oy, {stats['days']} kun</b>\n\n"
-        f"✨ <b>Siz umringiz davomida:</b>\n"
-        f" ├ 🗓 <b>{stats['total_days']:,} kun</b>ni mazmunli yashab o'tdingiz\n"
-        f" ├ 📊 <b>{stats['total_weeks']:,} hafta</b>ni ortda qoldirdingiz\n"
-        f" └ 🌙 <b>{stats['total_months']:,} oy</b> davomida hayot quvonchlaridan bahramand bo'ldingiz\n\n"
+        f"✨ <b>Umringiz davomida:</b>\n"
+        f" ├ 🗓 <b>{stats['total_days']:,} kun</b>\n"
+        f" ├ 📊 <b>{stats['total_weeks']:,} hafta</b>\n"
+        f" └ 🌙 <b>{stats['total_months']:,} oy</b>\n\n"
         f"🎂 <b>Navbatdagi tug'ilgan kuningizga:</b> <code>{stats['days_to_next_bday']} kun qoldi</code>\n\n"
-        f"🔮 <b>Qiziqarli astrologik ma'lumotlar:</b>\n"
-        f" ├ 📆 <b>Tug'ilgan hafta kuningiz:</b> {stats['weekday']}\n"
-        f" ├ ✨ <b>Burjingiz (Zodiak):</b> {stats['zodiac']}\n"
-        f" └ 🐉 <b>Muchal yilingiz:</b> {stats['muchal']}\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"<i>Sizga uzoq va mazmunli umr, doimiy omad va sihat-salomatlik tilaymiz!</i> 😊"
+        f"🔮 <b>Astrologik ma'lumotlar:</b>\n"
+        f" ├ 📆 <b>Hafta kuni:</b> {stats['weekday']}\n"
+        f" ├ ✨ <b>Burj:</b> {stats['zodiac']}\n"
+        f" └ 🐉 <b>Muchal:</b> {stats['muchal']}\n"
+        f"━━━━━━━━━━━━━━━━━━"
     )
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -469,22 +464,24 @@ async def cb_get_story_img(callback: CallbackQuery, state: FSMContext, bot: Bot)
         await callback.answer("⚠️ Avval kanalga obuna bo'ling!", show_alert=True)
         return
 
-    await callback.answer("🎨 Chiroyli Story rasmi tayyorlanmoqda...")
+    await callback.answer("🎨 Story rasmi tayyorlanmoqda...")
     data = await state.get_data()
     stats = data.get("stats")
     fullname = data.get("user_fullname", callback.from_user.full_name)
 
     if not stats:
-        await callback.message.answer("❌ Sana ma'lumotlari topilmadi, qaytadan sana yuboring.")
+        await callback.message.answer("❌ Ma'lumot topilmadi, sanani qaytadan yuboring.")
         return
 
     loop = asyncio.get_running_loop()
-    img_buf = await loop.run_in_executor(None, create_story_image, fullname, stats)
+    # Agar sizda fonga tashlanadigan rasm fayli bo'lsa nomini yozing, masalan "bg.jpg"
+    bg_path = "bg.jpg" if os.path.exists("bg.jpg") else None
+    img_buf = await loop.run_in_executor(None, create_story_image, fullname, stats, bg_path)
     input_file = BufferedInputFile(img_buf.read(), filename="instagram_story.png")
 
     await callback.message.answer_photo(
         photo=input_file,
-        caption=f"📸 <b>{fullname}</b> uchun tayyorlangan Instagram Story mos rasmi!\n\n🤖 <b>{BOT_NAME}</b> | Dasturchi: {DEVELOPER}",
+        caption=f"📸 <b>{fullname}</b> uchun tayyorlangan Instagram Story rasmi!\n\n🤖 <b>{BOT_NAME}</b> | Dasturchi: {DEVELOPER}",
         parse_mode="HTML"
     )
 
@@ -494,23 +491,23 @@ async def cb_show_top5_celebrities(callback: CallbackQuery, state: FSMContext, b
         await callback.answer("⚠️ Avval kanalga obuna bo'ling!", show_alert=True)
         return
 
-    await callback.answer("🌟 Mashhurlar ro'yxati yuklanmoqda...")
+    await callback.answer("🌟 Mashhurlar yuklanmoqda...")
     
     try:
         parts = callback.data.split("_")
         day, month = int(parts[1]), int(parts[2])
     except Exception:
-        await callback.message.answer("❌ Xatolik yuz berdi. Iltimos, sanani qayta kiriting.")
+        await callback.message.answer("❌ Xatolik yuz berdi.")
         return
 
-    loading_msg = await callback.message.answer("🔄 <i>Ushbu sanada tug'ilgan mashhur insonlar qidirilmoqda...</i>", parse_mode="HTML")
+    loading_msg = await callback.message.answer("🔄 <i>Ushbu sanada tug'ilgan mashhurlar aniqlanmoqda...</i>", parse_mode="HTML")
     celebs = await fetch_top5_celebrities(day, month)
 
     try: await loading_msg.delete()
     except TelegramBadRequest: pass
 
     if not celebs:
-        await callback.message.answer("⚠️ Kechirasiz, ushbu sanada ma'lumot topilmadi.")
+        await callback.message.answer("⚠️ Kechirasiz, bu sanada ma'lumot topilmadi.")
         return
 
     for index, celeb in enumerate(celebs, 1):
@@ -520,7 +517,7 @@ async def cb_show_top5_celebrities(callback: CallbackQuery, state: FSMContext, b
             f"📅 <b>Tug'ilgan yili:</b> {celeb['year']}-yil ({day:02d}.{month:02d})\n"
             f"💼 <b>Kasbi:</b> {celeb['occupation']}\n"
             f"🌍 <b>Davlati:</b> {celeb['country']}\n\n"
-            f"📝 <b>Qisqacha tarjimai holi:</b>\n<i>{celeb['description']}</i>\n"
+            f"📝 <b>Tarjimai holi:</b>\n<i>{celeb['description']}</i>\n"
             f"━━━━━━━━━━━━━━━━━━"
         )
         try:
@@ -540,7 +537,7 @@ async def global_error_handler(event: Any, exception: Exception):
 # ==============================================================================
 async def main():
     if not BOT_TOKEN:
-        logger.error("BOT_TOKEN mavjud emas!")
+        logger.error("BOT_TOKEN topilmadi!")
         return
 
     bot = Bot(token=BOT_TOKEN)
@@ -551,7 +548,7 @@ async def main():
     dp.callback_query.middleware(middleware)
 
     dp.include_router(router)
-    logger.info("JavoAgeBot muvaffaqiyatli ishga tushdi!")
+    logger.info("JavoAgeBot ishga tushdi!")
 
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
