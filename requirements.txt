@@ -1,5 +1,8 @@
 aiogram
 aiohttp
 Pillow
+python-dateutil
 python-dotenv
+qrcode
+deep-translator
 flask
