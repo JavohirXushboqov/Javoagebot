@@ -205,13 +205,13 @@ def calculate_age_stats(birth_date: date) -> Dict[str, Any]:
     }
 
 # ==============================================================================
-# CELEBRITY API & FALLBACK SYSTEM
+# CELEBRITY API & KAFOLATLANGAN BAZA
 # ==============================================================================
 FALLBACK_CELEBS = {
     (31, 1): [
-        {"name": "Wolfgang Amadeus Mozart", "year": "1756", "occupation": "Dahiy bastakor va sozanda", "country": "Avstriya", "description": "Klassik musiqa tarixidagi eng buyuk bastakorlardan biri."},
+        {"name": "Wolfgang Amadeus Mozart", "year": "1756", "occupation": "Dahiy bastakor", "country": "Avstriya", "description": "Klassik musiqa tarixidagi eng buyuk bastakorlardan biri."},
         {"name": "Justin Timberlake", "year": "1981", "occupation": "Qo'shiqchi va aktyor", "country": "AQSh", "description": "Dunyoga mashhur pop va R&B ijrochisi."},
-        {"name": "Zamirbek", "year": "1995", "occupation": "Dasturchi va muhandis", "country": "O'zbekiston", "description": "Faol yosh mutaxassis."},
+        {"name": "Zamirbek Xushboqov", "year": "1995", "occupation": "Dasturchi", "country": "O'zbekiston", "description": "Faol yosh muhandis va dasturchi."},
         {"name": "Min Kyun-hoon", "year": "1984", "occupation": "Xonanda", "country": "Janubiy Koreya", "description": "Mashhur qo'shiqchi va teleboshlovchi."},
         {"name": "Ellie Bamber", "year": "1997", "occupation": "Aktrisa", "country": "Buyuk Britaniya", "description": "Taniqli kino aktrisasi."}
     ]
@@ -279,44 +279,42 @@ async def fetch_top5_celebrities(day: int, month: int) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Wiki API Error: {e}")
 
-    # Agar Wikipedia'dan topilmasa, zaxiradagi bazadan olamiz yoki umumiy mashhurlarni taqdim etamiz
+    # Agar maxsus sanada (masalan 31.01) bazada bo'lsa, uni olamiz
     if not celebs and (day, month) in FALLBACK_CELEBS:
         celebs = FALLBACK_CELEBS[(day, month)]
     elif not celebs:
-        # Har qanday sana uchun umumiy kafolatlangan mashhurlar ro'yxati
+        # Har qanday boshqa sana uchun ham kafolatlangan mashhurlar ro'yxati
         celebs = [
-            {"name": "Albert Einstein", "year": "1879", "occupation": "Dahiy fizik", "country": "Germaniya", "description": "Nisbiylik nazariyasi asoschisi."},
             {"name": "Cristiano Ronaldo", "year": "1985", "occupation": "Professional futbolchi", "country": "Portugaliya", "description": "Jahon futboli afsonasi."},
             {"name": "Lionel Messi", "year": "1987", "occupation": "Professional futbolchi", "country": "Argentina", "description": "Ko'p karra Oltin to'p sohibi."},
             {"name": "Elon Musk", "year": "1971", "occupation": "Tadbirkor va muhandis", "country": "AQSh", "description": "Tesla va SpaceX asoschisi."},
-            {"name": "Bill Gates", "year": "1955", "occupation": "Dasturchi va tadbirkor", "country": "AQSh", "description": "Microsoft asoschisi."}
+            {"name": "Bill Gates", "year": "1955", "occupation": "Dasturchi va tadbirkor", "country": "AQSh", "description": "Microsoft asoschisi."},
+            {"name": "Albert Einstein", "year": "1879", "occupation": "Dahiy fizik", "country": "Germaniya", "description": "Nisbiylik nazariyasi asoschisi."}
         ]
 
     CACHE_CELEBS[cache_key] = celebs
     return celebs
 
 # ==============================================================================
-# INSTAGRAM STORY IMAGE GENERATOR (1080x1920 HD) - MUKAMMAL DIZAYN
+# INSTAGRAM STORY IMAGE GENERATOR (1080x1920 HD) - YANGILANGAN DIZAYN
 # ==============================================================================
 def create_story_image(user_fullname: str, stats: Dict[str, Any]) -> io.BytesIO:
     width, height = 1080, 1920
     base = Image.new("RGBA", (width, height), (18, 16, 38, 255))
     draw = ImageDraw.Draw(base)
 
-    # Chiroyli gradient fon
     for y in range(height):
         r = int(18 + (45 - 18) * (y / height))
         g = int(16 + (28 - 16) * (y / height))
         b = int(38 + (75 - 38) * (y / height))
         draw.line([(0, y), (width, y)], fill=(r, g, b, 255))
 
-    # Yorug'lik doiralari
     draw.ellipse([50, -50, 950, 450], fill=(140, 90, 255, 45))
     draw.ellipse([-100, 1300, 700, 1850], fill=(255, 110, 170, 30))
 
-    # Yuqori qismdagi och rangli, aniq ko'rinadigan qism (Header Card)
+    # Yuqori qismdagi sarlavha bloki (Endi to'q binafsha-pushti yorqin va ko'rkam fonda, yozuvlar oq va oltin rangda aniq ko'rinadi)
     header_box = [60, 60, width - 60, 240]
-    draw.rounded_rectangle(header_box, radius=35, fill=(245, 240, 255, 240), outline=(212, 175, 55, 255), width=3)
+    draw.rounded_rectangle(header_box, radius=35, fill=(55, 30, 90, 245), outline=(212, 175, 55, 255), width=3)
 
     def get_font(size: int):
         for font_name in ["arial.ttf", "DejaVuSans.ttf", "times.ttf"]:
@@ -332,9 +330,9 @@ def create_story_image(user_fullname: str, stats: Dict[str, Any]) -> io.BytesIO:
     font_card_val = get_font(32)
     font_footer = get_font(26)
 
-    # Telegram logosi o'rniga maxsus belgi va to'q quyuq rangli aniq yozuvlar
-    draw.text((width // 2, 115), "💬 JavoAgeBot", font=font_title, fill=(30, 25, 60, 255), anchor="mm")
-    draw.text((width // 2, 185), f"Foydalanuvchi: {user_fullname}", font=font_sub, fill=(160, 40, 100, 255), anchor="mm")
+    # Samolyot o'rniga Telegram logosi belgisi (💬) va oq/oltin rangdagi aniq yozuvlar
+    draw.text((width // 2, 115), "💬 JavoAgeBot", font=font_title, fill=(255, 255, 255, 255), anchor="mm")
+    draw.text((width // 2, 185), f"Foydalanuvchi: {user_fullname}", font=font_sub, fill=(212, 175, 55, 255), anchor="mm")
 
     cards = [
         ("📅  Tug'ilgan sanangiz", stats['birth_date_str']),
