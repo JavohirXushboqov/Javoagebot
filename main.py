@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Any, Callable
 from aiogram import Bot, Dispatcher, F, Router, BaseMiddleware
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton,
-    BufferedInputFile, TelegramObject, SwitchInlineQueryChosenChat
+    BufferedInputFile, TelegramObject
 )
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
@@ -33,8 +33,10 @@ logger = logging.getLogger("JavoAgeBot")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 REQUIRED_CHANNEL = "@xushboqovblog"
 BOT_NAME = "JavoAgeBot"
+BOT_USERNAME = "@JavoAgeBot"
 DEVELOPER = "@XushboqovJavohir"
 INSTAGRAM_CONTACT = "@xuushboqov"
+INSTAGRAM_URL = "https://instagram.com/xuushboqov"
 TELEGRAM_CONTACT = "@XushboqovJavohir"
 
 # ==============================================================================
@@ -64,7 +66,7 @@ class RateLimitMiddleware(BaseMiddleware):
             if now - last_time < self.limit:
                 if isinstance(event, CallbackQuery):
                     try:
-                        await event.answer("⚠️ Iltimos, biroz shoshmasdan turing!", show_alert=False)
+                        await event.answer("⚠️ Iltimos, biroz shoshmasdan turing azizim!", show_alert=False)
                     except TelegramAPIError:
                         pass
                 return
@@ -100,12 +102,12 @@ WEEKDAYS_UZ = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanb
 
 ZODIAC_SIGNS = [
     (1, 20, "Qovg'a ♒ (Aquarius)"), (2, 19, "Baliq ♓ (Pisces)"), (3, 21, "Qo'y ♈ (Aries)"),
-    (4, 20, "Buqa ♉ (Taurus)"), (5, 21, "Ezgizaklar ♊ (Gemini)"), (6, 21, "Qisqichbaqa ♋ (Cancer)"),
+    (4, 20, "Buqa ♉ (Taurus)"), (5, 21, "Egizaklar ♊ (Gemini)"), (6, 21, "Qisqichbaqa ♋ (Cancer)"),
     (7, 23, "Arslon ♌ (Leo)"), (8, 23, "Parizod ♍ (Virgo)"), (9, 23, "Tarozi ♎ (Libra)"),
     (10, 23, "Chayon ♏ (Scorpio)"), (11, 22, "O'qotar ♐ (Sagittarius)"), (12, 22, "Echki ♑ (Capricorn)")
 ]
 
-MUCHAL_ANIMALS = ["Sichqon 🐭", "Sigir 🐮", "Yo'lbars 🐯", "Quyon 🐰", "Ajdaho 🐲", "Ilan 🐍", "Ot 🐴", "Qo'y 🐑", "Maymun 🐵", "Tovuq 🐔", "It 🐶", "To'ng'iz 🐗"]
+MUCHAL_ANIMALS = ["Sichqon 🐭", "Sigir 🐮", "Yo'lbars 🐯", "Quyon 🐰", "Ajdaho 🐲", "Ilon 🐍", "Ot 🐴", "Qo'y 🐑", "Maymun 🐵", "Tovuq 🐔", "It 🐶", "To'ng'iz 🐗"]
 
 def get_zodiac(day: int, month: int) -> str:
     if (month == 1 and day <= 19) or (month == 12 and day >= 22):
@@ -172,19 +174,22 @@ def calculate_age_stats(birth_date: date) -> Dict[str, Any]:
     }
 
 # ==============================================================================
-# RETRO QOG'OZ FONLI RASM GENERATORI
+# CHIRSVOYLI VA ZAMONAVIY RASM GENERATORI
 # ==============================================================================
 def create_story_image(user_fullname: str, stats: Dict[str, Any]) -> io.BytesIO:
     width, height = 1080, 1920
     
-    base = Image.new("RGBA", (width, height), (235, 218, 185, 255))
+    # Elegant va yumshoq fon rangi (Qaymoqrang / Krem)
+    base = Image.new("RGBA", (width, height), (245, 240, 232, 255))
     draw = ImageDraw.Draw(base, "RGBA")
 
-    for line_y in range(250, height - 120, 50):
-        draw.line([(80, line_y), (width - 80, line_y)], fill=(210, 190, 155, 120), width=2)
+    # Orqa fondagi nafis bezak chiziqlari
+    for line_y in range(280, height - 150, 60):
+        draw.line([(80, line_y), (width - 80, line_y)], fill=(225, 215, 200, 150), width=2)
 
-    draw.rectangle([40, 40, width - 40, height - 40], outline=(40, 30, 20, 255), width=6)
-    draw.rectangle([55, 55, width - 55, height - 55], outline=(90, 70, 50, 255), width=2)
+    # Chiroyli ramka
+    draw.rectangle([50, 50, width - 50, height - 50], outline=(60, 45, 35, 255), width=5)
+    draw.rectangle([65, 65, width - 65, height - 65], outline=(140, 115, 95, 255), width=2)
 
     def get_font(size: int):
         for font_name in ["arial.ttf", "DejaVuSans.ttf", "times.ttf"]:
@@ -194,17 +199,18 @@ def create_story_image(user_fullname: str, stats: Dict[str, Any]) -> io.BytesIO:
                 continue
         return ImageFont.load_default()
 
-    font_title = get_font(40)
-    font_sub = get_font(32)
-    font_card_title = get_font(25)
-    font_card_val = get_font(30)
+    font_title = get_font(42)
+    font_sub = get_font(30)
+    font_card_title = get_font(26)
+    font_card_val = get_font(32)
     font_footer = get_font(24)
 
-    header_box = [80, 80, width - 80, 230]
-    draw.rounded_rectangle(header_box, radius=20, fill=(45, 35, 25, 230), outline=(212, 175, 55, 255), width=3)
+    # Header qismi
+    header_box = [80, 80, width - 80, 240]
+    draw.rounded_rectangle(header_box, radius=25, fill=(50, 38, 28, 240), outline=(212, 175, 55, 255), width=3)
 
-    draw.text((120, 125), "💬 JavoAgeBot", font=font_title, fill=(255, 255, 255, 255), anchor="lm")
-    draw.text((120, 180), f"Foydalanuvchi ismi: {user_fullname}", font=font_sub, fill=(235, 205, 120, 255), anchor="lm")
+    draw.text((120, 130), f"✨ {BOT_NAME} Statistikasi", font=font_title, fill=(255, 255, 255, 255), anchor="lm")
+    draw.text((120, 185), f"Qadrli foydalanuvchi: {user_fullname}", font=font_sub, fill=(235, 205, 120, 255), anchor="lm")
 
     cards = [
         ("📅  Tug'ilgan sanangiz", stats['birth_date_str']),
@@ -218,20 +224,20 @@ def create_story_image(user_fullname: str, stats: Dict[str, Any]) -> io.BytesIO:
         ("🐉  Muchal yilingiz", stats['muchal'])
     ]
 
-    y_pos = 265
-    card_h = 135
+    y_pos = 280
+    card_h = 130
 
     for label, val in cards:
         rect = [80, y_pos, width - 80, y_pos + card_h]
-        draw.rounded_rectangle(rect, radius=15, fill=(248, 240, 225, 240), outline=(120, 95, 70, 220), width=2)
-        draw.rounded_rectangle([80, y_pos, 100, y_pos + card_h], radius=8, fill=(180, 130, 40, 255))
+        draw.rounded_rectangle(rect, radius=18, fill=(255, 252, 248, 250), outline=(160, 135, 110, 200), width=2)
+        draw.rounded_rectangle([80, y_pos, 105, y_pos + card_h], radius=10, fill=(195, 140, 45, 255))
 
-        draw.text((130, y_pos + 38), label, font=font_card_title, fill=(90, 70, 50, 255), anchor="lm")
-        draw.text((130, y_pos + 92), str(val), font=font_card_val, fill=(35, 25, 15, 255), anchor="lm")
-        y_pos += card_h + 12
+        draw.text((135, y_pos + 38), label, font=font_card_title, fill=(100, 75, 55, 255), anchor="lm")
+        draw.text((135, y_pos + 90), str(val), font=font_card_val, fill=(35, 25, 18, 255), anchor="lm")
+        y_pos += card_h + 10
 
-    draw.line([(120, height - 75), (width - 120, height - 75)], fill=(120, 95, 70, 180), width=2)
-    draw.text((width // 2, height - 42), f"🤖 @{BOT_NAME} | Dasturchi: {DEVELOPER}", font=font_footer, fill=(70, 50, 30, 255), anchor="mm")
+    draw.line([(120, height - 85), (width - 120, height - 85)], fill=(140, 115, 95, 180), width=2)
+    draw.text((width // 2, height - 50), f"🤖 {BOT_NAME} | Mehribon Dasturchi: {DEVELOPER}", font=font_footer, fill=(80, 60, 45, 255), anchor="mm")
 
     buf = io.BytesIO()
     base.save(buf, format="PNG")
@@ -249,18 +255,19 @@ async def cmd_start(message: Message, state: FSMContext, bot: Bot):
     
     if not await check_channel_subscription(bot, message.from_user.id):
         text = (
-            f"Assalomu alaykum, qadrli <b>{message.from_user.full_name}</b>! 😊\n\n"
-            f"Botimizdan to'liq foydalanish uchun kanalimizga obuna bo'lishingizni so'raymiz:\n"
-            f"👉 <b>{REQUIRED_CHANNEL}</b>"
+            f"Assalomu alaykum va rohmatulloh, hurmatli <b>{message.from_user.full_name}</b>! 😊\n\n"
+            f"Botimiz imkoniyatlaridan to'liq bahramand bo'lishingiz uchun iltimos, quyidagi kanalimizga obuna bo'lib qo'ying:\n"
+            f"👉 <b>{REQUIRED_CHANNEL}</b>\n\n"
+            f"Obuna bo'lganingizdan so'ng, pastdagi tugmani bosing:"
         )
         await message.answer(text, parse_mode="HTML", reply_markup=get_sub_keyboard())
         return
 
     text = (
-        f"Assalomu alaykum, xush kelibsiz <b>{message.from_user.full_name}</b>! ✨\n\n"
-        f"<b>{BOT_NAME}</b> yordamida yoshingiz va tug'ilgan kuningizga oid barcha qiziqarli ma'lumotlarni bilib oling.\n\n"
-        f"📌 <b>Iltimos, tug'ilgan sanangizni yuboring:</b>\n"
-        f"<i>(Masalan: <code>05.02.2002</code> yoki <code>31.01.1995</code>)</i>"
+        f"Assalomu alaykum, qadrli va hurmatli <b>{message.from_user.full_name}</b>! ✨\n\n"
+        f"<b>{BOT_NAME}</b> olamiga xush kelibsiz! Sizga yoshingiz va tug'ilgan kuningizga oid eng qiziqarli ma'lumotlarni sevgi bilan taqdim etishdan mamnunman. 🥰\n\n"
+        f"📌 <b>Marhamat qilib, tug'ilgan sanangizni yuboring:</b>\n"
+        f"<i>(Namuna: <code>17.05.2010</code> yoki <code>05.02.2002</code>)</i>"
     )
     await message.answer(text, parse_mode="HTML")
     await state.set_state(UserStates.waiting_for_birthdate)
@@ -268,24 +275,24 @@ async def cmd_start(message: Message, state: FSMContext, bot: Bot):
 @router.callback_query(F.data == "check_subscription")
 async def cb_check_subscription(callback: CallbackQuery, state: FSMContext, bot: Bot):
     if await check_channel_subscription(bot, callback.from_user.id):
-        await callback.answer("✅ Rahmat! Obunangiz tasdiqlandi.", show_alert=True)
+        await callback.answer("✅ Rahmat, obunangiz muvaffaqiyatli tasdiqlandi!", show_alert=True)
         try: await callback.message.delete()
         except TelegramBadRequest: pass
         
         text = (
-            f"🎉 <b>Ajoyib! Obuna muvaffaqiyatli tasdiqlandi.</b>\n\n"
-            f"📌 Endi o'zingizning tug'ilgan sanangizni yuboring:\n"
-            f"<i>(Masalan: <code>05.02.2002</code>)</i>"
+            f"🎉 <b>Juda ajoyib! Tabriklayman, obunangiz tasdiqlandi.</b>\n\n"
+            f"📌 Endi o'zingizning qadrli tug'ilgan sanangizni kiriting:\n"
+            f"<i>(Namuna: <code>17.05.2010</code>)</i>"
         )
         await callback.message.answer(text, parse_mode="HTML")
         await state.set_state(UserStates.waiting_for_birthdate)
     else:
-        await callback.answer("❌ Siz hali kanalga obuna bo'lmadingiz!", show_alert=True)
+        await callback.answer("❌ Kechirasiz, siz hali kanalimizga obuna bo'lmadingiz.", show_alert=True)
 
 @router.message(F.text & ~F.text.startswith("/"))
 async def process_birthdate(message: Message, state: FSMContext, bot: Bot):
     if not await check_channel_subscription(bot, message.from_user.id):
-        await message.answer("⚠️ Botdan foydalanish uchun avval kanalga obuna bo'ling!", reply_markup=get_sub_keyboard())
+        await message.answer("⚠️ Iltimos, avval kanalimizga obuna bo'ling!", reply_markup=get_sub_keyboard())
         return
 
     raw_text = message.text.strip() if message.text else ""
@@ -299,11 +306,11 @@ async def process_birthdate(message: Message, state: FSMContext, bot: Bot):
             pass
 
     if not parsed_date:
-        await message.answer("❌ <b>Sana formati noto'g'ri!</b>\nIltimos, quyidagicha kiriting (Masalan: <code>05.02.2002</code>):", parse_mode="HTML")
+        await message.answer("❌ <b>Kechirasiz, sana formati biroz xato yozildi.</b>\nIltimos, ushbu ko'rinishda yuboring (Namuna: <code>17.05.2010</code>):", parse_mode="HTML")
         return
 
     if parsed_date > date.today() or parsed_date.year < 1900:
-        await message.answer("❌ <b>Iltimos, haqiqiy tug'ilgan sanangizni kiriting!</b>", parse_mode="HTML")
+        await message.answer("❌ <b>Iltimos, o'zingizning haqiqiy va to'g'ri tug'ilgan sanangizni kiriting!</b>", parse_mode="HTML")
         return
 
     stats = calculate_age_stats(parsed_date)
@@ -327,19 +334,17 @@ async def process_birthdate(message: Message, state: FSMContext, bot: Bot):
     )
 
     share_text = (
-        f"Salom! Men yoshim va tug'ilgan kunim statistikagizni hisobladim:\n"
+        f"Salom! Men o'z yoshim va tug'ilgan kunim statistikasini hisobladim:\n"
         f"📅 Tug'ilgan kun: {stats['birth_date_str']}\n"
-        f"⏳ Yoshim: {stats['years']} yosh\n"
-        f"🤖 Sen ham o'z yoshingni bilish uchun ushbu botga kirmaysanmi? 👇"
+        f"⏳ Yoshim: {stats['years']} yosh\n\n"
+        f"🤖 Sen ham o'z yoshingni bilish uchun ushbu botga kirmaysanmi? 👇\n"
+        f"{BOT_USERNAME}"
     )
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🖼 Ma'lumotni rasm shaklida olish", callback_data="get_story_img")],
         [InlineKeyboardButton(text="ℹ️ Bot haqida ma'lumot", callback_data="bot_info")],
-        [InlineKeyboardButton(
-            text="📤 Do'stlarga ulashish", 
-            switch_inline_query=share_text
-        )]
+        [InlineKeyboardButton(text="📤 Do'stlarga ulashish", switch_inline_query=share_text)]
     ])
 
     await message.answer(msg_text, parse_mode="HTML", reply_markup=kb)
@@ -347,46 +352,46 @@ async def process_birthdate(message: Message, state: FSMContext, bot: Bot):
 @router.callback_query(F.data == "get_story_img")
 async def cb_get_story_img(callback: CallbackQuery, state: FSMContext, bot: Bot):
     if not await check_channel_subscription(bot, callback.from_user.id):
-        await callback.answer("⚠️ Avval kanalga obuna bo'ling!", show_alert=True)
+        await callback.answer("⚠️ Iltimos, avval kanalimizga obuna bo'ling!", show_alert=True)
         return
 
-    await callback.answer("🎨 Retro dizaynli rasm tayyorlanmoqda...")
+    await callback.answer("🎨 Siz uchun eng chiroyli dizaynli rasm tayyorlanmoqda...")
     data = await state.get_data()
     stats = data.get("stats")
     fullname = data.get("user_fullname", callback.from_user.full_name)
 
     if not stats:
-        await callback.message.answer("❌ Ma'lumot topilmadi, sanani qaytadan yuboring.")
+        await callback.message.answer("❌ Kechirasiz, ma'lumot topilmadi. Sanani qaytadan yuborishingizni so'rayman.")
         return
 
     loop = asyncio.get_running_loop()
     img_buf = await loop.run_in_executor(None, create_story_image, fullname, stats)
-    input_file = BufferedInputFile(img_buf.read(), filename="retro_story.png")
+    input_file = BufferedInputFile(img_buf.read(), filename="chiroyli_statistika.png")
 
     await callback.message.answer_photo(
         photo=input_file,
-        caption=f"📸 <b>{fullname}</b> uchun tayyorlangan dizaynli rasm!\n\n🤖 <b>{BOT_NAME}</b> | Dasturchi: {DEVELOPER}",
+        caption=f"📸 <b>{fullname}</b> uchun maxsus va chiroyli tayyorlangan rasm!\n\n🤖 <b>{BOT_NAME}</b> | Mehribon Dasturchi: {DEVELOPER}",
         parse_mode="HTML"
     )
 
 @router.callback_query(F.data == "bot_info")
 async def cb_bot_info(callback: CallbackQuery, bot: Bot):
     if not await check_channel_subscription(bot, callback.from_user.id):
-        await callback.answer("⚠️ Avval kanalga obuna bo'ling!", show_alert=True)
+        await callback.answer("⚠️ Iltimos, avval kanalimizga obuna bo'ling!", show_alert=True)
         return
 
     await callback.answer("ℹ️ Bot haqida ma'lumot ochildi")
     
     info_text = (
-        f"🤖 <b>Bot haqida ma'lumot:</b>\n\n"
-        f"<b>{BOT_NAME}</b> — foydalanuvchining tug'ilgan sanasiga ko'ra uning aniq yoshini yillar, oylar, kunlar, haftalar va oylar kesimida hisoblab beruvchi hamda qiziqarli astrologik ma'lumotlar (burj, muchal, hafta kuni) taqdim etuvchi aqlli yordamchi bot.\n\n"
-        f"👨‍💻 <b>Bot yaratuvchisi (Dasturchi):</b> {DEVELOPER}\n\n"
-        f"📢 <b>Reklama va hamkorlik uchun murojaat:</b>\n"
-        f" ├ 📸 Instagram: <b>{INSTAGRAM_CONTACT}</b>\n"
+        f"🤖 <b>Bot haqida samimiy ma'lumot:</b>\n\n"
+        f"<b>{BOT_NAME}</b> — aziz foydalanuvchilarimizga o'zlarining tug'ilgan sanalariga ko'ra aniq yoshlarini yillar, oylar, kunlar va haftalar kesimida sevgi bilan hisoblab beruvchi, shuningdek qiziqarli astrologik ma'lumotlarni ulashuvchi qulay yordamchi bot.\n\n"
+        f"👨‍💻 <b>Botning zahmatkash yaratuvchisi:</b> {DEVELOPER}\n\n"
+        f"📢 <b>Reklama va hamkorlik uchun doimo ochiqmiz:</b>\n"
+        f" ├ 📸 Instagram: <a href='{INSTAGRAM_URL}'><b>{INSTAGRAM_CONTACT}</b></a>\n"
         f" └ 📱 Telegram: <b>{TELEGRAM_CONTACT}</b>\n\n"
-        f"━━━━━━━━━━━━━━━━━━"
+        f"<i>Bizni tanlaganingiz uchun sizga o'z minnatdorchiligimizni bildiramiz! ✨</i>"
     )
-    await callback.message.answer(info_text, parse_mode="HTML")
+    await callback.message.answer(info_text, parse_mode="HTML", disable_web_page_preview=True)
 
 @router.errors()
 async def global_error_handler(event: Any, exception: Exception):
@@ -409,7 +414,7 @@ async def main():
     dp.callback_query.middleware(middleware)
 
     dp.include_router(router)
-    logger.info("JavoAgeBot muvaffaqiyatli ishga tushdi!")
+    logger.info("JavoAgeBot muvaffaqiyatli ishga tushdi va xizmatingizga shay!")
 
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
