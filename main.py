@@ -205,7 +205,7 @@ def calculate_age_stats(birth_date: date) -> Dict[str, Any]:
     }
 
 # ==============================================================================
-# CELEBRITY API (TOP 5) - FAKAT HAQIQIY SANADAGILAR
+# CELEBRITY API (TOP 5) - FAQAT HAQIQIY SANADAGILAR
 # ==============================================================================
 async def fetch_celebrity_details(name: str) -> Dict[str, Any]:
     if name in CACHE_DETAILS:
@@ -384,7 +384,7 @@ async def cb_check_subscription(callback: CallbackQuery, state: FSMContext, bot:
     else:
         await callback.answer("❌ Siz hali kanalga obuna bo'lmadingiz!", show_alert=True)
 
-@router.message(F.text)
+@router.message(F.text & ~F.text.startswith("/"))
 async def process_birthdate(message: Message, state: FSMContext, bot: Bot):
     if not await check_channel_subscription(bot, message.from_user.id):
         await message.answer("⚠️ Botdan foydalanish uchun avval kanalga obuna bo'ling!", reply_markup=get_sub_keyboard())
