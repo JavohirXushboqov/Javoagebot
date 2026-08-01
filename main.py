@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Any, Callable
 from aiogram import Bot, Dispatcher, F, Router, BaseMiddleware
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton,
-    BufferedInputFile, TelegramObject, SwitchInlineQueryChosenChat
+    BufferedInputFile, TelegramObject
 )
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
@@ -258,7 +258,7 @@ async def cmd_start(message: Message, state: FSMContext, bot: Bot):
 
     text = (
         f"Assalomu alaykum, xush kelibsiz <b>{message.from_user.full_name}</b>! ✨\n\n"
-        f"<b>{BOT_NAME}</b> yordamida yoshingiz va tug'ilgan kuningizga oid barcha qiziqarli ma'lumotlarni bilib oling.\n\n"
+        f"<b>{BOT_NAME}</b> yordamida yoshingiz va tug'ilgan kuningizga oid barcha qiziqarli ma'lumotlarni muloyimlik bilan bilib oling.\n\n"
         f"📌 <b>Iltimos, tug'ilgan sanangizni yuboring:</b>\n"
         f"<i>(Masalan: <code>05.02.2002</code> yoki <code>31.01.1995</code>)</i>"
     )
@@ -299,7 +299,7 @@ async def process_birthdate(message: Message, state: FSMContext, bot: Bot):
             pass
 
     if not parsed_date:
-        await message.answer("❌ <b>Sana formati noto'g'ri!</b>\nIltimos, quyidagicha kiriting (Masalan: <code>05.02.2002</code>):", parse_mode="HTML")
+        await message.answer("❌ <b>Sana formati noto'g'ri!</b>\nIltimos, muloyimlik bilan to'g'ri kiriting (Masalan: <code>05.02.2002</code>):", parse_mode="HTML")
         return
 
     if parsed_date > date.today() or parsed_date.year < 1900:
@@ -327,7 +327,7 @@ async def process_birthdate(message: Message, state: FSMContext, bot: Bot):
     )
 
     share_text = (
-        f"Salom! Men yoshim va tug'ilgan kunim statistikagizni hisobladim:\n"
+        f"Salom! Men yoshim va tug'ilgan kunim statistikasini hisobladim:\n"
         f"📅 Tug'ilgan kun: {stats['birth_date_str']}\n"
         f"⏳ Yoshim: {stats['years']} yosh\n"
         f"🤖 Sen ham o'z yoshingni bilish uchun ushbu botga kirmaysanmi? 👇"
@@ -336,10 +336,7 @@ async def process_birthdate(message: Message, state: FSMContext, bot: Bot):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🖼 Ma'lumotni rasm shaklida olish", callback_data="get_story_img")],
         [InlineKeyboardButton(text="ℹ️ Bot haqida ma'lumot", callback_data="bot_info")],
-        [InlineKeyboardButton(
-            text="📤 Do'stlarga ulashish", 
-            switch_inline_query=share_text
-        )]
+        [InlineKeyboardButton(text="📤 Do'stlarga ulashish", switch_inline_query=share_text)]
     ])
 
     await message.answer(msg_text, parse_mode="HTML", reply_markup=kb)
