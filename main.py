@@ -179,15 +179,12 @@ def calculate_age_stats(birth_date: date) -> Dict[str, Any]:
 def create_story_image(user_fullname: str, stats: Dict[str, Any]) -> io.BytesIO:
     width, height = 1080, 1920
     
-    # Elegant va yumshoq fon rangi (Qaymoqrang / Krem)
     base = Image.new("RGBA", (width, height), (245, 240, 232, 255))
     draw = ImageDraw.Draw(base, "RGBA")
 
-    # Orqa fondagi nafis bezak chiziqlari
     for line_y in range(280, height - 150, 60):
         draw.line([(80, line_y), (width - 80, line_y)], fill=(225, 215, 200, 150), width=2)
 
-    # Chiroyli ramka
     draw.rectangle([50, 50, width - 50, height - 50], outline=(60, 45, 35, 255), width=5)
     draw.rectangle([65, 65, width - 65, height - 65], outline=(140, 115, 95, 255), width=2)
 
@@ -205,7 +202,6 @@ def create_story_image(user_fullname: str, stats: Dict[str, Any]) -> io.BytesIO:
     font_card_val = get_font(32)
     font_footer = get_font(24)
 
-    # Header qismi
     header_box = [80, 80, width - 80, 240]
     draw.rounded_rectangle(header_box, radius=25, fill=(50, 38, 28, 240), outline=(212, 175, 55, 255), width=3)
 
@@ -236,8 +232,10 @@ def create_story_image(user_fullname: str, stats: Dict[str, Any]) -> io.BytesIO:
         draw.text((135, y_pos + 90), str(val), font=font_card_val, fill=(35, 25, 18, 255), anchor="lm")
         y_pos += card_h + 10
 
-    draw.line([(120, height - 85), (width - 120, height - 85)], fill=(140, 115, 95, 180), width=2)
-    draw.text((width // 2, height - 50), f"🤖 {BOT_NAME} | Mehribon Dasturchi: {DEVELOPER}", font=font_footer, fill=(80, 60, 45, 255), anchor="mm")
+    # Chiziqni yuqoriroqqa qo'yamiz
+    draw.line([(120, height - 110), (width - 120, height - 110)], fill=(140, 115, 95, 180), width=2)
+    # Matnni esa chiziqning tagiga joylashtiramiz
+    draw.text((width // 2, height - 65), f"JavoAgeBot | dasturchi: {DEVELOPER}", font=font_footer, fill=(80, 60, 45, 255), anchor="mm")
 
     buf = io.BytesIO()
     base.save(buf, format="PNG")
@@ -370,7 +368,7 @@ async def cb_get_story_img(callback: CallbackQuery, state: FSMContext, bot: Bot)
 
     await callback.message.answer_photo(
         photo=input_file,
-        caption=f"📸 <b>{fullname}</b> uchun maxsus va chiroyli tayyorlangan rasm!\n\n🤖 <b>{BOT_NAME}</b> | Mehribon Dasturchi: {DEVELOPER}",
+        caption=f"📸 <b>{fullname}</b> uchun maxsus va chiroyli tayyorlangan rasm!\n\n🤖 <b>{BOT_NAME}</b> | dasturchi: {DEVELOPER}",
         parse_mode="HTML"
     )
 
@@ -385,7 +383,7 @@ async def cb_bot_info(callback: CallbackQuery, bot: Bot):
     info_text = (
         f"🤖 <b>Bot haqida samimiy ma'lumot:</b>\n\n"
         f"<b>{BOT_NAME}</b> — aziz foydalanuvchilarimizga o'zlarining tug'ilgan sanalariga ko'ra aniq yoshlarini yillar, oylar, kunlar va haftalar kesimida sevgi bilan hisoblab beruvchi, shuningdek qiziqarli astrologik ma'lumotlarni ulashuvchi qulay yordamchi bot.\n\n"
-        f"👨‍💻 <b>Botning zahmatkash yaratuvchisi:</b> {DEVELOPER}\n\n"
+        f"👨‍💻 <b>Botni yaratgan dasturchi:</b> {DEVELOPER}\n\n"
         f"📢 <b>Reklama va hamkorlik uchun doimo ochiqmiz:</b>\n"
         f" ├ 📸 Instagram: <a href='{INSTAGRAM_URL}'><b>{INSTAGRAM_CONTACT}</b></a>\n"
         f" └ 📱 Telegram: <b>{TELEGRAM_CONTACT}</b>\n\n"
