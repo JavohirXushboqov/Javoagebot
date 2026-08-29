@@ -6,21 +6,27 @@ import sqlite3
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, Callable
 
+from dateutil.relativedelta import relativedelta
+
 from aiogram import Bot, Dispatcher, F, Router, BaseMiddleware
+from aiogram.enums import ChatMemberStatus, ParseMode
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton,
-    BufferedInputFile, TelegramObject
+    ReplyKeyboardMarkup, KeyboardButton, BufferedInputFile, TelegramObject
 )
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.exceptions import TelegramBadRequest, TelegramAPIError
-from aiogram.types.error_event import ErrorEvent
+from aiogram.exceptions import TelegramAPIError
 
 from PIL import Image, ImageDraw, ImageFont
 
-from config import DEVELOPER_ID
+# config.py faylidan yuklab olish
+try:
+    from config import DEVELOPER_ID
+except ImportError:
+    DEVELOPER_ID = 0
 
 # ==============================================================================
 # LOGGING CONFIGURATION
@@ -41,12 +47,11 @@ BOT_USERNAME = "@JavoAgeBot"
 DEVELOPER = "@XushboqovJavohir"
 INSTAGRAM_CONTACT = "@xuushboqov"
 INSTAGRAM_URL = "https://instagram.com/xuushboqov"
-TELEGRAM_CONTACT = "@XushboqovJavohir"
 
 DB_FILE = "bot_stats.db"
 
 # ==============================================================================
-# DATABASE INITIALIZATION (Thread-safe & Safe connection handling)
+# DATABASE INITIALIZATION
 # ==============================================================================
 def init_db():
     try:
@@ -61,6 +66,7 @@ def init_db():
                 )
             """)
             conn.commit()
+            logger.info("Baza muvaffaqiyatli ishga tushirildi.")
     except Exception as e:
         logger.error(f"Bazani yaratishda xatolik: {e}")
 
@@ -72,16 +78,27 @@ def track_user(user_id: int, username: str, full_name: str):
             cursor.execute("""
                 INSERT OR IGNORE INTO users (user_id, username, full_name, joined_date)
                 VALUES (?, ?, ?, ?)
-            """, (user_id, username, full_name, today_str))
+            """, (user_id, username or "", full_name or "", today_str))
             conn.commit()
     except Exception as e:
         logger.error(f"Bazaga foydalanuvchi qo'shishda xatolik: {e}")
+
+def get_total_users_count() -> int:
+    try:
+        with sqlite3.connect(DB_FILE, timeout=30.0) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM users")
+            res = cursor.fetchone()
+            return res[0] if res else 0
+    except Exception as e:
+        logger.error(f"Statistikaning olishda xatolik: {e}")
+        return 0
 
 # ==============================================================================
 # MIDDLEWARE
 # ==============================================================================
 class RateLimitMiddleware(BaseMiddleware):
-    def __init__(self, limit: float = 0.5):
+    def __init__(self, limit: float = 0.6):
         super().__init__()
         self.limit = limit
         self.user_timestamps: Dict[int, float] = {}
@@ -104,7 +121,7 @@ class RateLimitMiddleware(BaseMiddleware):
             if now - last_time < self.limit:
                 if isinstance(event, CallbackQuery):
                     try:
-                        await event.answer("⚠️ Iltimos, biroz shoshmasdan turing azizim!", show_alert=False)
+                        await event.answer("⚠️ Iltimos, biroz shoshmasdan turing!", show_alert=False)
                     except TelegramAPIError:
                         pass
                 return
@@ -112,23 +129,25 @@ class RateLimitMiddleware(BaseMiddleware):
 
         return await handler(event, data)
 
+# ==============================================================================
+# STATES
+# ==============================================================================
 class UserStates(StatesGroup):
     waiting_for_birthdate = State()
 
 # ==============================================================================
-# CHANNEL SUBSCRIPTION CHECKER
+# SUBSCRIPTION & KEYBOARDS
 # ==============================================================================
 async def check_channel_subscription(bot: Bot, user_id: int) -> bool:
     try:
         member = await bot.get_chat_member(chat_id=REQUIRED_CHANNEL, user_id=user_id)
-        from aiogram.enums import ChatMemberStatus
         return member.status in [
             ChatMemberStatus.CREATOR,
             ChatMemberStatus.ADMINISTRATOR,
             ChatMemberStatus.MEMBER
         ]
     except Exception as e:
-        logger.warning(f"Obunani tekshirishda xatolik {user_id}: {e}")
+        logger.warning(f"Obunani tekshirishda xatolik ({user_id}): {e}")
         return False
 
 def get_sub_keyboard() -> InlineKeyboardMarkup:
@@ -138,8 +157,18 @@ def get_sub_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="✅ Obunani tekshirish", callback_data="check_subscription")]
     ])
 
+def get_main_keyboard(user_id: int) -> ReplyKeyboardMarkup:
+    buttons = [
+        [KeyboardButton(text="📅 Yoshni hisoblash")],
+        [KeyboardButton(text="ℹ️ Bot haqida"), KeyboardButton(text="👨‍💻 Dasturchi")]
+    ]
+    if user_id == DEVELOPER_ID:
+        buttons.append([KeyboardButton(text="📊 Statistika")])
+    
+    return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
+
 # ==============================================================================
-# CALCULATIONS (Mathematical precise age stats)
+# CALCULATIONS
 # ==============================================================================
 WEEKDAYS_UZ = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba", "Yakshanba"]
 
@@ -150,7 +179,10 @@ ZODIAC_SIGNS = [
     (10, 23, "Chayon ♏ (Scorpio)"), (11, 22, "O'qotar ♐ (Sagittarius)"), (12, 22, "Echki ♑ (Capricorn)")
 ]
 
-MUCHAL_ANIMALS = ["Sichqon 🐭", "Sigir 🐮", "Yo'lbars 🐯", "Quyon 🐰", "Ajdaho 🐲", "Ilon 🐍", "Ot 🐴", "Qo'y 🐑", "Maymun 🐵", "Tovuq 🐔", "It 🐶", "To'ng'iz 🐗"]
+MUCHAL_ANIMALS = [
+    "Sichqon 🐭", "Sigir 🐮", "Yo'lbars 🐯", "Quyon 🐰", "Ajdaho 🐲", "Ilon 🐍",
+    "Ot 🐴", "Qo'y 🐑", "Maymun 🐵", "Tovuq 🐔", "It 🐶", "To'ng'iz 🐗"
+]
 
 def get_zodiac(day: int, month: int) -> str:
     if (month == 1 and day <= 19) or (month == 12 and day >= 22):
@@ -171,23 +203,17 @@ def get_muchal(year: int) -> str:
 def calculate_age_stats(birth_date: date) -> Dict[str, Any]:
     today = date.today()
     
-    years = today.year - birth_date.year
-    months = today.month - birth_date.month
-    days = today.day - birth_date.day
-
-    if days < 0:
-        months -= 1
-        prev_month_date = today.replace(day=1) - timedelta(days=1)
-        days += prev_month_date.day
-
-    if months < 0:
-        years -= 1
-        months += 12
+    # Aniq yosh, oy va kunlar
+    diff = relativedelta(today, birth_date)
+    years = diff.years
+    months = diff.months
+    days = diff.days
 
     total_days = (today - birth_date).days
     total_weeks = total_days // 7
     total_months = years * 12 + months
 
+    # Keyingi tug'ilgan kun
     try:
         next_bday = date(today.year, birth_date.month, birth_date.day)
     except ValueError:
@@ -216,7 +242,7 @@ def calculate_age_stats(birth_date: date) -> Dict[str, Any]:
     }
 
 # ==============================================================================
-# RASM GENERATORI (Enhanced text scaling and safe rendering)
+# RASM GENERATORI (Instagram Story Format 1080x1920)
 # ==============================================================================
 def create_story_image(user_display_name: str, stats: Dict[str, Any]) -> io.BytesIO:
     width, height = 1080, 1920
@@ -248,7 +274,7 @@ def create_story_image(user_display_name: str, stats: Dict[str, Any]) -> io.Byte
     temp_img = Image.new("RGBA", (1, 1))
     temp_draw = ImageDraw.Draw(temp_img)
     
-    sub_text = f"Qadrli foydalanuvchi: {user_display_name}"
+    sub_text = f"Foydalanuvchi: {user_display_name}"
     while sub_font_size > 14:
         font_sub = get_font(sub_font_size)
         bbox = temp_draw.textbbox((0, 0), sub_text, font=font_sub)
@@ -263,15 +289,15 @@ def create_story_image(user_display_name: str, stats: Dict[str, Any]) -> io.Byte
     draw.text((120, 185), sub_text, font=font_sub, fill=(235, 205, 120, 255), anchor="lm")
 
     cards = [
-        ("📅  Tug'ilgan sanangiz", stats['birth_date_str']),
-        ("⏳  Ayni vaqtdagi yoshingiz", f"{stats['years']} yosh, {stats['months']} oy, {stats['days']} kun"),
-        ("🗓  Muborak umringiz kunlari", f"{stats['total_days']:,} kun".replace(",", " ")),
-        ("📊  O'tgan mazmunli haftalar", f"{stats['total_weeks']:,} hafta".replace(",", " ")),
-        ("🌙  Yashalgan go'zal oylar", f"{stats['total_months']:,} oy".replace(",", " ")),
-        ("🎂  Keyingi tug'ilgan kuningizga", f"{stats['days_to_next_bday']} kun qoldi"),
-        ("📆  Tug'ilgan hafta kuningiz", stats['weekday']),
-        ("✨  Burjingiz (Zodiak)", stats['zodiac']),
-        ("🐉  Muchal yilingiz", stats['muchal'])
+        ("📅  Tug'ilgan sana", stats['birth_date_str']),
+        ("⏳  Hozirgi yosh", f"{stats['years']} yosh, {stats['months']} oy, {stats['days']} kun"),
+        ("🗓  Umringiz kunlari", f"{stats['total_days']:,} kun".replace(",", " ")),
+        ("📊  O'tgan haftalar", f"{stats['total_weeks']:,} hafta".replace(",", " ")),
+        ("🌙  Yashalgan oylar", f"{stats['total_months']:,} oy".replace(",", " ")),
+        ("🎂  Keyingi tug'ilgan kun", f"{stats['days_to_next_bday']} kun qoldi"),
+        ("📆  Tug'ilgan hafta kuni", stats['weekday']),
+        ("✨  Burj (Zodiak)", stats['zodiac']),
+        ("🐉  Muchal yili", stats['muchal'])
     ]
 
     y_pos = 280
@@ -287,9 +313,182 @@ def create_story_image(user_display_name: str, stats: Dict[str, Any]) -> io.Byte
         y_pos += card_h + 10
 
     draw.line([(120, height - 110), (width - 120, height - 110)], fill=(140, 115, 95, 180), width=2)
-    draw.text((width // 2, height - 65), f"JavoAgeBot | dasturchi: {DEVELOPER}", font=font_footer, fill=(80, 60, 45, 255), anchor="mm")
+    draw.text((width // 2, height - 65), f"JavoAgeBot | Dasturchi: {DEVELOPER}", font=font_footer, fill=(80, 60, 45, 255), anchor="mm")
 
     buf = io.BytesIO()
     base.save(buf, format="PNG")
     buf.seek(0)
     return buf
+
+# ==============================================================================
+# ROUTER & HANDLERS
+# ==============================================================================
+router = Router()
+
+@router.message(CommandStart())
+async def cmd_start(message: Message, bot: Bot, state: FSMContext):
+    await state.clear()
+    user = message.from_user
+    track_user(user.id, user.username, user.full_name)
+
+    is_subbed = await check_channel_subscription(bot, user.id)
+    if not is_subbed:
+        await message.answer(
+            f"Assalomu alaykum, <b>{user.full_name}</b>!\n\n"
+            f"Botdan foydalanish uchun rasmiy kanalimizga obuna bo'ling:",
+            reply_markup=get_sub_keyboard(),
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    await message.answer(
+        f"Assalomu alaykum, <b>{user.full_name}</b>!\n\n"
+        f"<b>{BOT_NAME}</b> boti orqali yoshingiz haqidagi barcha qiziqarli va aniq ma'lumotlarni bilib olishingiz mumkin.\n\n"
+        f"Hisoblashni boshlash uchun pastdagi <b>📅 Yoshni hisoblash</b> tugmasini bosing.",
+        reply_markup=get_main_keyboard(user.id),
+        parse_mode=ParseMode.HTML
+    )
+
+@router.callback_query(F.data == "check_subscription")
+async def cb_check_subscription(call: CallbackQuery, bot: Bot):
+    user_id = call.from_user.id
+    is_subbed = await check_channel_subscription(bot, user_id)
+    if is_subbed:
+        await call.message.delete()
+        await call.message.answer(
+            "✅ Obuna tasdiqlandi! Menyudan kerakli bo'limni tanlang:",
+            reply_markup=get_main_keyboard(user_id)
+        )
+    else:
+        await call.answer("⚠️ Hali kanalga obuna bo'lmadingiz. Iltimos obuna bo'ling!", show_alert=True)
+
+@router.message(F.text == "📅 Yoshni hisoblash")
+async def process_calc_btn(message: Message, bot: Bot, state: FSMContext):
+    if not await check_channel_subscription(bot, message.from_user.id):
+        await message.answer("⚠️ Davom etish uchun kanalimizga obuna bo'ling:", reply_markup=get_sub_keyboard())
+        return
+
+    await state.set_state(UserStates.waiting_for_birthdate)
+    await message.answer(
+        "Iltimos, tug'ilgan sanangizni <b>DD.MM.YYYY</b> formatida kiriting.\n\n"
+        "<i>Masalan: 15.08.2000</i>",
+        parse_mode=ParseMode.HTML
+    )
+
+@router.message(F.text == "ℹ️ Bot haqida")
+async def cmd_about(message: Message):
+    about_text = (
+        f"<b>🤖 {BOT_NAME} boti haqida:</b>\n\n"
+        f"Ushbu bot sizning tug'ilgan sanangiz asosida yoshingiz, yashagan kunlaringiz, "
+        f"haftalaringiz, burjingiz va muchalingizni aniq hisoblab beradi hamda chiroyli "
+        f"Instagram Story rasmini tayyorlaydi.\n\n"
+        f"📢 Rasmiy kanal: {REQUIRED_CHANNEL}\n"
+        f"📸 Instagram: {INSTAGRAM_CONTACT}"
+    )
+    await message.answer(about_text, parse_mode=ParseMode.HTML)
+
+@router.message(F.text == "👨‍💻 Dasturchi")
+async def cmd_developer(message: Message):
+    dev_text = (
+        f"<b>👨‍💻 Dasturchi:</b> {DEVELOPER}\n"
+        f"<b>📸 Instagram:</b> <a href='{INSTAGRAM_URL}'>{INSTAGRAM_CONTACT}</a>\n"
+        f"<b>📢 Telegram kanal:</b> {REQUIRED_CHANNEL}"
+    )
+    await message.answer(dev_text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+
+@router.message(F.text == "📊 Statistika")
+@router.message(Command("stats"))
+async def cmd_stats(message: Message):
+    if message.from_user.id != DEVELOPER_ID:
+        return
+    count = get_total_users_count()
+    await message.answer(f"📊 <b>Bot foydalanuvchilari soni:</b> {count} ta", parse_mode=ParseMode.HTML)
+
+@router.message(UserStates.waiting_for_birthdate)
+async def process_birthdate_input(message: Message, state: FSMContext):
+    date_text = message.text.strip()
+    
+    try:
+        birth_date = datetime.strptime(date_text, "%d.%m.%Y").date()
+    except ValueError:
+        await message.answer(
+            "❌ <b>Noto'g'ri sana formati yoki mavjud bo'lmagan sana!</b>\n\n"
+            "Iltimos, sanani <b>DD.MM.YYYY</b> formatida qayta kiriting.\n"
+            "<i>Masalan: 05.12.1998</i>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    today = date.today()
+    if birth_date > today:
+        await message.answer("❌ Tug'ilgan sana kelajakdagi sana bo'lishi mumkin emas. Qayta kiriting:")
+        return
+
+    if birth_date.year < 1900:
+        await message.answer("❌ Yil 1900-yildan kichik bo'lmasligi kerak. Qayta kiriting:")
+        return
+
+    await state.clear()
+    
+    wait_msg = await message.answer("🔄 Ma'lumotlar hisoblanmoqda va rasm tayyorlanmoqda...")
+
+    stats = calculate_age_stats(birth_date)
+    user_display = message.from_user.full_name
+
+    # Rasm tayyorlash
+    loop = asyncio.get_running_loop()
+    buf = await loop.run_in_executor(None, create_story_image, user_display, stats)
+    
+    photo = BufferedInputFile(buf.getvalue(), filename="javoage_story.png")
+
+    caption = (
+        f"✨ <b>{user_display} ning yosh statistikasi:</b>\n\n"
+        f"📅 <b>Tug'ilgan sana:</b> {stats['birth_date_str']}\n"
+        f"⏳ <b>Yoshi:</b> {stats['years']} yosh, {stats['months']} oy, {stats['days']} kun\n"
+        f"🗓 <b>Jami yashalgan kunlar:</b> {stats['total_days']:,}\n".replace(",", " ") +
+        f"📊 <b>Jami haftalar:</b> {stats['total_weeks']:,}\n".replace(",", " ") +
+        f"🌙 <b>Jami oylar:</b> {stats['total_months']:,}\n".replace(",", " ") +
+        f"🎂 <b>Keyingi tug'ilgan kungacha:</b> {stats['days_to_next_bday']} kun qoldi\n"
+        f"📆 <b>Tug'ilgan kuni:</b> {stats['weekday']}\n"
+        f"✨ <b>Burji:</b> {stats['zodiac']}\n"
+        f"🐉 <b>Muchali:</b> {stats['muchal']}\n\n"
+        f"🤖 Bot: {BOT_USERNAME}"
+    )
+
+    try:
+        await wait_msg.delete()
+    except Exception:
+        pass
+
+    await message.answer_photo(photo=photo, caption=caption, parse_mode=ParseMode.HTML)
+
+# Xatoliklarni ushlash
+@router.error()
+async def error_handler(event: TelegramObject):
+    logger.error(f"Xatolik yuz berdi: {event}")
+
+# ==============================================================================
+# MAIN FUNCTION
+# ==============================================================================
+async def main():
+    if not BOT_TOKEN:
+        logger.error("BOT_TOKEN topilmadi! .env fayl yoki Environment Variable'ni tekshiring.")
+        return
+
+    init_db()
+
+    bot = Bot(token=BOT_TOKEN)
+    dp = Dispatcher(storage=MemoryStorage())
+
+    # Middleware ulash
+    dp.message.middleware(RateLimitMiddleware())
+    dp.callback_query.middleware(RateLimitMiddleware())
+
+    # Router ulash
+    dp.include_router(router)
+
+    logger.info("Bot muvaffaqiyatli ishga tushirildi!")
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
