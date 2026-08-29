@@ -1,7 +1,7 @@
 # config.py
 
 # 🤖 Telegram Bot Token
-BOT_TOKEN = "8713752955:AAFdM95q3D94CGyNWqPYPexRNb1-vLvrRPY"
+BOT_TOKEN = "8713752955:AAGS0Kbyqjbwuii02xszj2SlVGTYBb01Vjk"
 
 # 👨‍💻 Dasturchi Telegram ID
 DEVELOPER_ID = 0
